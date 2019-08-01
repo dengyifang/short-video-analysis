@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/plugins/cors"
@@ -15,8 +17,9 @@ import (
 /**
  * Author: Filmy
  * Group: Mlooc
- * Date: 2019/5/28
- * Time: 8:58
+ * Date: 2019/8/1
+ * Time: 21:30
+ * Ver: 1.1
  */
 
 type analysisController struct {
@@ -127,7 +130,7 @@ func HttpGetLocationUrl(url string, ua string) string {
 
 }
 
-func HttpPost(url, params string) string {
+func HttpPost(url, params, contentType, userAgent string) string {
 	client := &http.Client{}
 
 	req, err := http.NewRequest("POST", url, strings.NewReader(params))
@@ -135,8 +138,8 @@ func HttpPost(url, params string) string {
 		log.Println(err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36")
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := client.Do(req)
 
@@ -147,6 +150,12 @@ func HttpPost(url, params string) string {
 		log.Println(err)
 	}
 	return string(body)
+}
+
+func md5M(str string) string {
+	h := md5.New()
+	h.Write([]byte(str))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // 微视
@@ -219,7 +228,7 @@ func zuiYou(url string) map[string]interface{} {
 	if len(pid) < 1 || len(pid[0]) < 2 {
 		return Echo(400, "参数错误", nil)
 	}
-	resp := HttpPost("https://share.izuiyou.com/api/post/detail", `{"pid":`+pid[0][1]+`}`)
+	resp := HttpPost("https://share.izuiyou.com/api/post/detail", `{"pid":`+pid[0][1]+`}`, "application/json", pc_ua)
 	respJson := gjson.Parse(resp)
 
 	if respJson.Get("ret").String() != "1" {
@@ -261,15 +270,17 @@ func huoShan(url string) map[string]interface{} {
 // 快手
 func kuaiShou(url string) map[string]interface{} {
 	resp := HttpGet(url, pc_ua)
-	photoId := regexp.MustCompile(`"photoId":"(.*?)",`).FindAllStringSubmatch(resp, -1)
+	photoId := regexp.MustCompile(`href="/u/.*?/(.*?)"`).FindAllStringSubmatch(resp, -1)
 	if len(photoId) < 1 || len(photoId[0]) < 2 {
 		return Echo(400, "参数错误", nil)
 	}
-	resp = HttpGet("https://api.kmovie.gifshow.com/rest/n/kmovie/app/photo/getPhotoById?WS&jjh_yqc&ws&photoId="+photoId[0][1], pc_ua)
+	param := `client_key=56c3713c&photoIds=` + photoId[0][1]
+	sig := md5M(strings.ReplaceAll(param, "&", "") + string([]byte{50, 51, 99, 97, 97, 98, 48, 48, 51, 53, 54, 99}))
+	resp = HttpPost("http://api.gifshow.com/rest/n/photo/info", param+`&sig=`+sig, "application/x-www-form-urlencoded", "kwai-android")
 	respJson := gjson.Parse(resp)
-	text := respJson.Get("photo.caption").Str
-	cover := respJson.Get("photo.coverUrl").Str
-	playAddr := respJson.Get("photo.mainUrl").Str
+	text := respJson.Get("photos.0.caption").Str
+	cover := respJson.Get("photos.0.thumbnail_url").Str
+	playAddr := respJson.Get("photos.0.main_mv_url").Str
 	if playAddr == "" {
 		return Echo(400, "解析错误", nil)
 	}
