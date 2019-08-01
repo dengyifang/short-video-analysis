@@ -68,7 +68,23 @@ func (this *analysisController) Get() {
 }
 
 func (this *analysisController) Post() {
-
+	url := this.GetString("url")
+	if strings.Index(url, "weishi.qq.com") != -1 {
+		this.Data["json"] = weiShi(url)
+	} else if strings.Index(url, "douyin.com") != -1 || strings.Index(url, "iesdouyin.com") != -1 {
+		this.Data["json"] = douYin(url)
+	} else if strings.Index(url, "pipix.com") != -1 {
+		this.Data["json"] = ppx(url)
+	} else if strings.Index(url, "izuiyou.com") != -1 {
+		this.Data["json"] = zuiYou(url)
+	} else if strings.Index(url, "huoshan.com") != -1 {
+		this.Data["json"] = huoShan(url)
+	} else if strings.Index(url, "kuaishou.com") != -1 || strings.Index(url, "gifshow.com") != -1 {
+		this.Data["json"] = kuaiShou(url)
+	} else {
+		this.Data["json"] = Echo(400, "暂不支持该平台", nil)
+	}
+	this.ServeJSON()
 }
 
 func Echo(code int, msg string, data interface{}) map[string]interface{} {
